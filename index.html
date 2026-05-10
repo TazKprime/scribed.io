@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Whisper Local</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0f;
+  --bg2: #111118;
+  --bg3: #18181f;
+  --bg4: #22222c;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.13);
+  --text: #f0f0f5;
+  --muted: #6b6b80;
+  --accent: #7c6af5;
+  --accent2: #a593ff;
+  --accent-dim: rgba(124,106,245,0.15);
+  --green: #3dffa0;
+  --green-dim: rgba(61,255,160,0.12);
+  --amber: #ffb347;
+  --red: #ff5f6d;
+  --cyan: #5af3ff;
+  --font-display: 'Syne', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --r: 10px;
+  --r2: 16px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: linear-gradient(rgba(124,106,245,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(124,106,245,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none; z-index: 0;
+}
+
+/* NAV */
+.nav {
+  position: sticky; top: 0; z-index: 50;
+  height: 54px;
+  background: rgba(10,10,15,0.93);
+  backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center;
+  padding: 0 22px; gap: 0;
+}
+.nav-logo { font-family: var(--font-display); font-size: 17px; font-weight: 800; letter-spacing: -0.5px; margin-right: 28px; flex-shrink: 0; white-space: nowrap; }
+.nav-logo span { color: var(--accent2); }
+.nav-links { display: flex; gap: 2px; }
+.nav-link {
+  display: flex; align-items: center; gap: 6px;
+  padding: 5px 13px; border-radius: 8px;
+  font-size: 13px; color: var(--muted);
+  cursor: pointer; transition: all 0.15s;
+  border: 1px solid transparent; user-select: none;
+}
+.nav-link:hover { color: var(--text); background: var(--bg3); }
+.nav-link.active { color: var(--text); background: var(--bg3); border-color: var(--border2); }
+.nav-badge {
+  font-size: 10px; padding: 1px 6px; border-radius: 10px;
+  background: var(--green-dim); color: var(--green);
+  border: 1px solid rgba(61,255,160,0.25); margin-left: 2px;
+}
+.nav-right { margin-left: auto; }
+.privacy-pill {
+  font-size: 10px; padding: 3px 9px; border-radius: 4px;
+  background: var(--green-dim); color: var(--green);
+  border: 1px solid rgba(61,255,160,0.25);
+  letter-spacing: 0.8px; text-transform: uppercase;
+}
+
+/* PAGES */
+.page { display: none; position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 26px 20px 80px; }
+.page.active { display: block; }
+
+/* BUTTONS */
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: var(--r); border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-family: var(--font-mono); font-size: 13px; cursor: pointer; transition: all 0.15s; user-select: none; }
+.btn:hover { background: var(--bg4); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.danger { background: rgba(255,95,109,0.1); border-color: rgba(255,95,109,0.32); color: var(--red); }
+.btn.danger:hover { background: rgba(255,95,109,0.2); }
+.btn:disabled { opacity: 0.36; cursor: not-allowed; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+/* TRANSCRIBE PAGE — model+lang row */
+.top-config {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r); margin-bottom: 18px;
+}
+.cfg-label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+.model-select-wrap { position: relative; flex: 1; min-width: 190px; }
+.model-select-wrap select {
+  width: 100%; appearance: none;
+  background: var(--bg3); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--font-mono); font-size: 13px;
+  padding: 7px 30px 7px 11px; border-radius: 8px; cursor: pointer;
+}
+.model-select-wrap select:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+.model-select-wrap::after { content: '▾'; position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 10px; pointer-events: none; }
+
+.sel-status { display: flex; align-items: center; gap: 6px; font-size: 11px; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-none { background: var(--muted); }
+.dot-ready { background: var(--green); box-shadow: 0 0 5px rgba(61,255,160,0.55); }
+
+.get-models-link { font-size: 11px; padding: 5px 10px; border-radius: 6px; border: 1px solid rgba(124,106,245,0.35); background: var(--accent-dim); color: var(--accent2); cursor: pointer; transition: all 0.15s; font-family: var(--font-mono); white-space: nowrap; }
+.get-models-link:hover { background: rgba(124,106,245,0.25); }
+
+select.lang-sel { background: var(--bg3); border: 1px solid var(--border2); color: var(--text); font-family: var(--font-mono); font-size: 13px; padding: 7px 11px; border-radius: 8px; cursor: pointer; }
+
+/* UPLOAD */
+.upload-zone {
+  border: 1.5px dashed var(--border2); border-radius: var(--r2);
+  padding: 44px 32px; text-align: center; cursor: pointer;
+  transition: all 0.2s; background: var(--bg2); position: relative; overflow: hidden;
+}
+.upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: var(--accent-dim); }
+.upload-zone::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at center top, rgba(124,106,245,0.07) 0%, transparent 70%); pointer-events: none; }
+#fileInput { display: none; }
+.upload-icon { font-size: 32px; margin-bottom: 10px; }
+.upload-title { font-family: var(--font-display); font-size: 17px; font-weight: 700; margin-bottom: 5px; }
+.upload-sub { color: var(--muted); font-size: 12px; }
+.upload-sub strong { color: var(--accent2); }
+
+.divider { display: flex; align-items: center; gap: 12px; margin: 13px 0; color: var(--muted); font-size: 12px; }
+.divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* STATUS */
+.status-bar { display: none; align-items: center; gap: 10px; padding: 11px 15px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); margin-bottom: 14px; }
+.status-bar.on { display: flex; }
+.spinner { width: 15px; height: 15px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.status-text { flex: 1; font-size: 12px; color: var(--muted); }
+.status-text strong { color: var(--text); }
+.prog-track { width: 90px; height: 3px; background: var(--border2); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.prog-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; transition: width .3s; }
+
+/* WAVEFORM / AUDIO */
+#waveCanvas { width: 100%; height: 54px; background: var(--bg2); border-radius: var(--r); border: 1px solid var(--border); display: none; margin-bottom: 13px; }
+.rec-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); display: inline-block; animation: blink 1s ease infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+#audioPlayer { width: 100%; margin-bottom: 14px; display: none; accent-color: var(--accent); }
+
+/* RESULT TABS */
+.rtabs { display: flex; gap: 2px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r); padding: 4px; margin-bottom: 13px; }
+.rtab { flex: 1; padding: 7px 4px; text-align: center; font-size: 12px; border-radius: 7px; cursor: pointer; transition: all .15s; color: var(--muted); }
+.rtab.active { background: var(--bg4); color: var(--text); font-weight: 500; }
+.rpanel { display: none; }
+.rpanel.active { display: block; }
+
+/* TRANSCRIPT */
+.tbox { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; min-height: 160px; }
+.tbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 11px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.tbar-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; flex: 1; }
+.bxs { display: inline-flex; align-items: center; gap: 4px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--border2); background: var(--bg3); color: var(--muted); font-family: var(--font-mono); font-size: 11px; cursor: pointer; transition: all .15s; }
+.bxs:hover { color: var(--text); background: var(--bg4); }
+#transcriptText { font-size: 13.5px; line-height: 1.9; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+.ph { color: var(--muted); font-size: 13px; }
+mark.kw-momentum { background: rgba(255,179,71,.2); color: var(--amber); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+mark.kw-velocity  { background: rgba(90,243,255,.17); color: var(--cyan); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+mark.kw-payout    { background: rgba(61,255,160,.17); color: var(--green); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+mark.kw-growth    { background: rgba(124,106,245,.2); color: var(--accent2); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+mark.kw-revenue   { background: rgba(61,255,160,.17); color: var(--green); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+mark.kw-loss      { background: rgba(255,95,109,.17); color: var(--red); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+mark.kw-risk      { background: rgba(255,95,109,.17); color: var(--red); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+mark.kw-target    { background: rgba(255,179,71,.2); color: var(--amber); border-radius: 3px; padding: 0 3px; font-weight: 500; }
+
+/* KEYWORDS */
+.kwbox { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; }
+.kw-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 16px; }
+.kw-chip { padding: 4px 10px; border-radius: 20px; font-size: 11px; cursor: pointer; border: 1px solid transparent; transition: all .15s; }
+.kw-chip:hover { filter: brightness(1.2); }
+.chip-momentum { background: rgba(255,179,71,.17); color: var(--amber); border-color: rgba(255,179,71,.3); }
+.chip-velocity  { background: rgba(90,243,255,.13); color: var(--cyan);  border-color: rgba(90,243,255,.3); }
+.chip-payout    { background: rgba(61,255,160,.13); color: var(--green); border-color: rgba(61,255,160,.3); }
+.chip-growth    { background: rgba(124,106,245,.17); color: var(--accent2); border-color: rgba(124,106,245,.3); }
+.chip-revenue   { background: rgba(61,255,160,.13); color: var(--green); border-color: rgba(61,255,160,.3); }
+.chip-loss      { background: rgba(255,95,109,.13); color: var(--red); border-color: rgba(255,95,109,.3); }
+.chip-risk      { background: rgba(255,95,109,.13); color: var(--red); border-color: rgba(255,95,109,.3); }
+.chip-target    { background: rgba(255,179,71,.17); color: var(--amber); border-color: rgba(255,179,71,.3); }
+.kw-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px,1fr)); gap: 8px; }
+.kw-card { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+.kw-card .n { font-family: var(--font-display); font-size: 20px; font-weight: 700; color: var(--accent2); }
+.kw-card .l { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* SENTIMENT */
+.sentbox { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; }
+.sent-chart-wrap { position: relative; height: 255px; margin-bottom: 11px; }
+.sent-summary { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 11px; }
+.sc { background: var(--bg3); border: 1px solid var(--border); border-radius: 8px; padding: 10px; text-align: center; }
+.sc .v { font-family: var(--font-display); font-size: 19px; font-weight: 700; }
+.sc .l { font-size: 10px; color: var(--muted); margin-top: 2px; }
+.sent-insight { padding: 11px 14px; background: var(--bg3); border-radius: 8px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+
+/* EXPORT */
+.export-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(175px,1fr)); gap: 10px; }
+.ex-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--r2); padding: 18px; cursor: pointer; transition: all .18s; }
+.ex-card:hover { border-color: var(--accent); background: var(--accent-dim); }
+.ex-icon { font-size: 24px; margin-bottom: 7px; }
+.ex-title { font-family: var(--font-display); font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+.ex-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+/* ═══ MODELS PAGE ═══════════════════════════════════════ */
+.models-hdr { margin-bottom: 22px; }
+.models-hdr h1 { font-family: var(--font-display); font-size: 22px; font-weight: 800; margin-bottom: 5px; }
+.models-hdr p { font-size: 12px; color: var(--muted); line-height: 1.65; max-width: 560px; }
+
+.mlist { display: grid; gap: 11px; }
+
+.mc {
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 14px; align-items: start;
+  padding: 18px 20px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: var(--r2); transition: border-color .2s, background .2s;
+}
+.mc.mc-cached { border-color: rgba(61,255,160,.18); }
+.mc.mc-active { border-color: var(--accent); background: var(--accent-dim); }
+.mc.mc-dling  { border-color: rgba(124,106,245,.3); }
+
+.mc-left { min-width: 0; }
+.mc-namerow { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; flex-wrap: wrap; }
+.mc-name { font-family: var(--font-display); font-size: 15px; font-weight: 700; }
+.cached-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px rgba(61,255,160,.5); flex-shrink: 0; }
+.active-pill { font-size: 10px; padding: 2px 7px; border-radius: 10px; background: var(--accent-dim); color: var(--accent2); border: 1px solid rgba(124,106,245,.35); }
+.mc-meta { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; margin-bottom: 8px; }
+.mc-meta span { font-size: 11px; color: var(--muted); }
+.mc-tag { font-size: 10px; font-weight: 500; padding: 2px 7px; border-radius: 4px; }
+.tag-fast     { background: rgba(61,255,160,.14); color: var(--green); }
+.tag-balanced { background: rgba(124,106,245,.17); color: var(--accent2); }
+.tag-accurate { background: rgba(90,243,255,.13); color: var(--cyan); }
+.tag-multi    { background: rgba(255,179,71,.17); color: var(--amber); }
+.mc-desc { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 9px; }
+.mc-bar { display: none; }
+.mc-bar.on { display: block; }
+.mc-bar-track { height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.mc-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 2px; width: 0; transition: width .25s; }
+.mc-bar-lbl { font-size: 11px; color: var(--muted); }
+
+.mc-right { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; flex-shrink: 0; padding-top: 1px; }
+.mc-size { font-size: 11px; color: var(--muted); }
+.mb { display: inline-flex; align-items: center; gap: 5px; padding: 6px 13px; border-radius: 8px; border: 1px solid var(--border2); background: var(--bg3); color: var(--text); font-family: var(--font-mono); font-size: 12px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.mb:hover { background: var(--bg4); }
+.mb:disabled { opacity: .33; cursor: not-allowed; }
+.mb.dl   { border-color: rgba(124,106,245,.4); color: var(--accent2); background: var(--accent-dim); }
+.mb.dl:hover { background: rgba(124,106,245,.24); }
+.mb.use  { border-color: rgba(61,255,160,.4); color: var(--green); background: var(--green-dim); }
+.mb.use:hover { background: rgba(61,255,160,.22); }
+.mb.using { border-color: var(--accent); color: var(--accent2); background: var(--accent-dim); cursor: default; }
+.mb.del  { border-color: rgba(255,95,109,.25); color: var(--red); background: rgba(255,95,109,.07); }
+.mb.del:hover { background: rgba(255,95,109,.16); }
+
+/* TOAST */
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px); background: var(--bg3); border: 1px solid var(--border2); color: var(--text); padding: 9px 20px; border-radius: var(--r); font-size: 13px; z-index: 200; transition: transform .28s; pointer-events: none; }
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok { border-color: rgba(61,255,160,.4); color: var(--green); }
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="nav-logo">Whisper<span>—</span>Local</div>
+  <div class="nav-links">
+    <div class="nav-link active" data-page="transcribe">🎙 Transcribe</div>
+    <div class="nav-link" data-page="models">📦 Models <span class="nav-badge" id="cachedBadge">0 ready</span></div>
+  </div>
+  <div class="nav-right"><span class="privacy-pill">🔒 On-Device</span></div>
+</nav>
+
+<!-- PAGE: TRANSCRIBE -->
+<div class="page active" id="page-transcribe">
+
+  <div class="top-config">
+    <span class="cfg-label">Model</span>
+    <div class="model-select-wrap">
+      <select id="modelSelect">
+        <option value="">— no models downloaded yet —</option>
+      </select>
+    </div>
+    <div class="sel-status">
+      <span class="dot dot-none" id="selDot"></span>
+      <span id="selStatusTxt" style="color:var(--muted); font-size:11px;">No model selected</span>
+    </div>
+    <button class="get-models-link" id="goModelsBtn">+ Get models →</button>
+    <span class="cfg-label">Lang</span>
+    <select class="lang-sel" id="langSelect">
+      <option value="en">English</option>
+      <option value="es">Spanish</option>
+      <option value="fr">French</option>
+      <option value="de">German</option>
+      <option value="auto">Auto-detect</option>
+    </select>
+  </div>
+
+  <div class="upload-zone" id="dropZone">
+    <input type="file" id="fileInput" accept="audio/*,video/*">
+    <div class="upload-icon">🎵</div>
+    <div class="upload-title">Drop audio or video here</div>
+    <div class="upload-sub">or <strong>click to browse</strong> — MP3, WAV, M4A, MP4, OGG, FLAC</div>
+  </div>
+
+  <div class="divider">or record live</div>
+  <div class="btn-row" style="margin-bottom:16px;">
+    <button class="btn" id="recordBtn">⏺ Start recording</button>
+    <button class="btn danger" id="stopRecordBtn" disabled>⏹ Stop</button>
+  </div>
+
+  <canvas id="waveCanvas" height="54"></canvas>
+  <audio id="audioPlayer" controls></audio>
+
+  <div class="status-bar" id="statusBar">
+    <div class="spinner"></div>
+    <div class="status-text" id="statusText">Loading…</div>
+    <div class="prog-track"><div class="prog-fill" id="progFill" style="width:0%"></div></div>
+  </div>
+
+  <div id="resultArea" style="display:none;">
+    <div class="rtabs">
+      <div class="rtab active" data-rt="transcript">📝 Transcript</div>
+      <div class="rtab" data-rt="keywords">🔑 Keywords</div>
+      <div class="rtab" data-rt="sentiment">📈 Sentiment</div>
+      <div class="rtab" data-rt="export">⬇ Export</div>
+    </div>
+
+    <div class="rpanel active" id="rt-transcript">
+      <div class="tbox">
+        <div class="tbar">
+          <span class="tbar-title">Transcript</span>
+          <button class="bxs" id="copyBtn">⎘ Copy</button>
+          <button class="bxs" id="clearBtn">✕ Clear</button>
+        </div>
+        <div id="transcriptText"><span class="ph">Your transcript will appear here…</span></div>
+      </div>
+    </div>
+
+    <div class="rpanel" id="rt-keywords">
+      <div class="kwbox">
+        <div class="tbar"><span class="tbar-title">Keyword Highlights</span></div>
+        <div class="kw-chips" id="kwChips"></div>
+        <div class="kw-grid" id="kwGrid"></div>
+      </div>
+    </div>
+
+    <div class="rpanel" id="rt-sentiment">
+      <div class="sentbox">
+        <div class="tbar">
+          <span class="tbar-title">Sentiment Analysis</span>
+          <span style="font-size:11px;color:var(--muted);">via Claude AI</span>
+        </div>
+        <div class="sent-chart-wrap"><canvas id="sentChart" role="img" aria-label="Sentiment over time"></canvas></div>
+        <div class="sent-summary" id="sentSummary"></div>
+        <div class="sent-insight" id="sentInsight">Run the analysis to see the emotional arc of this conversation.</div>
+        <div style="margin-top:11px;"><button class="btn primary" id="analyzeBtn">✨ Analyze Sentiment</button></div>
+      </div>
+    </div>
+
+    <div class="rpanel" id="rt-export">
+      <div class="export-grid">
+        <div class="ex-card" onclick="exportAs('txt')"><div class="ex-icon">📄</div><div class="ex-title">Plain Text</div><div class="ex-desc">Clean .txt for any editor</div></div>
+        <div class="ex-card" onclick="exportAs('json')"><div class="ex-icon">⚙️</div><div class="ex-title">JSON</div><div class="ex-desc">Full structured data with metadata</div></div>
+        <div class="ex-card" onclick="exportAs('srt')"><div class="ex-icon">🎬</div><div class="ex-title">SRT Subtitles</div><div class="ex-desc">For video editors and players</div></div>
+        <div class="ex-card" onclick="exportAs('md')"><div class="ex-icon">📋</div><div class="ex-title">Markdown</div><div class="ex-desc">Formatted report with analysis</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAGE: MODELS -->
+<div class="page" id="page-models">
+  <div class="models-hdr">
+    <h1>Model Library</h1>
+    <p>Download models once — they're cached in your browser and never need re-downloading. All processing runs entirely on your device; no audio is ever sent to a server.</p>
+  </div>
+  <div class="mlist" id="mlist"></div>
+</div>
+
+<div class="toast" id="toastEl"></div>
+
+<script type="module">
+import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js';
+env.allowLocalModels = false;
+env.useBrowserCache = true;
+
+// ── Model definitions ──────────────────────────────────────────────────────
+const MODELS = [
+  { id:'Xenova/whisper-tiny.en',         name:'Whisper Tiny',          lang:'English only', size:'~150 MB', tag:'fast',     tagLabel:'⚡ Fastest',     desc:'Ideal when speed matters most. Great for short clips and real-time use. Slightly less accurate on accents or technical terms.' },
+  { id:'Xenova/whisper-base.en',         name:'Whisper Base',          lang:'English only', size:'~290 MB', tag:'balanced', tagLabel:'⚖ Balanced',     desc:'The best everyday model — solid accuracy with reasonable speed. A reliable default for most recordings and podcasts.' },
+  { id:'Xenova/distil-whisper-small.en', name:'Distil-Whisper Small',  lang:'English only', size:'~335 MB', tag:'accurate', tagLabel:'🎯 Accurate',    desc:'Distilled for higher accuracy. Noticeably better on fast speech, strong accents, and technical or domain-specific vocabulary.' },
+  { id:'Xenova/whisper-small',           name:'Whisper Small',         lang:'Multilingual', size:'~488 MB', tag:'multi',    tagLabel:'🌍 Multilingual', desc:'Supports 99+ languages including Spanish, French, German, Arabic and more. Use this for non-English or mixed-language audio.' },
+];
+
+const mState = {};  // 'idle' | 'downloading' | 'cached' | 'error'
+const mPipes = {};
+let activeId = null;
+MODELS.forEach(m => mState[m.id] = 'idle');
+
+const KEYWORDS = { momentum:1, velocity:1, payout:1, growth:1, revenue:1, loss:1, risk:1, target:1 };
+let rawTranscript = '';
+let sentimentData = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let animFrameId = null;
+let sentChartInst = null;
+
+// ── DOM refs ───────────────────────────────────────────────────────────────
+const toastEl      = document.getElementById('toastEl');
+const modelSelect  = document.getElementById('modelSelect');
+const selDot       = document.getElementById('selDot');
+const selStatusTxt = document.getElementById('selStatusTxt');
+const goModelsBtn  = document.getElementById('goModelsBtn');
+const resultArea   = document.getElementById('resultArea');
+const txText       = document.getElementById('transcriptText');
+const statusBar    = document.getElementById('statusBar');
+const statusText   = document.getElementById('statusText');
+const progFill     = document.getElementById('progFill');
+const waveCanvas   = document.getElementById('waveCanvas');
+const audioPlayer  = document.getElementById('audioPlayer');
+const mlistEl      = document.getElementById('mlist');
+const cachedBadge  = document.getElementById('cachedBadge');
+
+// ── Nav ────────────────────────────────────────────────────────────────────
+function goToPage(pg) {
+  document.querySelectorAll('.nav-link').forEach(l => l.classList.toggle('active', l.dataset.page === pg));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + pg));
+}
+document.querySelectorAll('.nav-link').forEach(l => l.addEventListener('click', () => goToPage(l.dataset.page)));
+goModelsBtn.addEventListener('click', () => goToPage('models'));
+
+// ── Result tabs ────────────────────────────────────────────────────────────
+document.querySelectorAll('.rtab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.rtab').forEach(x => x.classList.remove('active'));
+  document.querySelectorAll('.rpanel').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('rt-' + t.dataset.rt).classList.add('active');
+}));
+
+// ── Rebuild model <select> on transcribe page ──────────────────────────────
+function rebuildSelect() {
+  const prev = modelSelect.value;
+  modelSelect.innerHTML = '';
+  const cached = MODELS.filter(m => mState[m.id] === 'cached');
+  if (!cached.length) {
+    modelSelect.innerHTML = '<option value="">— no models downloaded yet —</option>';
+  } else {
+    cached.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id;
+      o.textContent = `${m.name}  (${m.size})`;
+      modelSelect.appendChild(o);
+    });
+    if (prev && mState[prev] === 'cached') modelSelect.value = prev;
+    else if (activeId && mState[activeId] === 'cached') modelSelect.value = activeId;
+  }
+  syncSelStatus();
+  cachedBadge.textContent = cached.length + ' ready';
+}
+
+modelSelect.addEventListener('change', () => {
+  activeId = modelSelect.value || null;
+  syncSelStatus();
+});
+
+function syncSelStatus() {
+  const id = modelSelect.value;
+  if (id) {
+    selDot.className = 'dot dot-ready';
+    selStatusTxt.textContent = 'Ready';
+    selStatusTxt.style.color = 'var(--green)';
+    goModelsBtn.style.display = 'none';
+    activeId = id;
+  } else {
+    selDot.className = 'dot dot-none';
+    selStatusTxt.textContent = 'No model selected';
+    selStatusTxt.style.color = 'var(--muted)';
+    goModelsBtn.style.display = '';
+  }
+}
+
+// ── Models page ────────────────────────────────────────────────────────────
+function renderModels() {
+  mlistEl.innerHTML = '';
+  MODELS.forEach(m => {
+    const st = mState[m.id];
+    const isActive = activeId === m.id;
+    const isCached = st === 'cached';
+    const isDLing  = st === 'downloading';
+    const safe = m.id.replace(/\//g, '-');
+
+    let btns = '';
+    if (st === 'idle' || st === 'error') {
+      btns = `<button class="mb dl" onclick="dlModel('${m.id}')">⬇ Download</button>`;
+    } else if (isDLing) {
+      btns = `<button class="mb" disabled>⏳ Downloading…</button>`;
+    } else {
+      btns = isActive
+        ? `<button class="mb using" disabled>✓ Active</button>`
+        : `<button class="mb use" onclick="useModel('${m.id}')">▶ Use this</button>`;
+      btns += `<button class="mb del" onclick="delModel('${m.id}')" ${isActive ? 'disabled title="Cannot remove active model"' : ''}>🗑</button>`;
+    }
+
+    const card = document.createElement('div');
+    card.className = `mc${isActive?' mc-active':isCached?' mc-cached':isDLing?' mc-dling':''}`;
+    card.id = 'mc-' + safe;
+    card.innerHTML = `
+      <div class="mc-left">
+        <div class="mc-namerow">
+          ${isCached ? '<span class="cached-dot"></span>' : ''}
+          <span class="mc-name">${m.name}</span>
+          ${isActive ? '<span class="active-pill">active</span>' : ''}
+        </div>
+        <div class="mc-meta">
+          <span>${m.lang}</span><span>·</span><span>${m.size}</span>
+          <span class="mc-tag tag-${m.tag}">${m.tagLabel}</span>
+        </div>
+        <div class="mc-desc">${m.desc}</div>
+        <div class="mc-bar${isDLing?' on':''}" id="bar-${safe}">
+          <div class="mc-bar-track"><div class="mc-bar-fill" id="fill-${safe}"></div></div>
+          <div class="mc-bar-lbl" id="lbl-${safe}">Starting…</div>
+        </div>
+      </div>
+      <div class="mc-right">
+        <span class="mc-size">${m.size}</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;">${btns}</div>
+      </div>`;
+    mlistEl.appendChild(card);
+  });
+  rebuildSelect();
+}
+
+window.dlModel = async function(modelId) {
+  if (mState[modelId] === 'downloading') return;
+  mState[modelId] = 'downloading';
+  renderModels();
+  const safe = modelId.replace(/\//g, '-');
+  const fill = document.getElementById('fill-' + safe);
+  const lbl  = document.getElementById('lbl-'  + safe);
+  try {
+    const pipe = await pipeline('automatic-speech-recognition', modelId, {
+      progress_callback: p => {
+        if (p.status === 'progress' && fill) {
+          const pct = Math.round(p.progress || 0);
+          fill.style.width = pct + '%';
+          if (lbl) lbl.textContent = `Downloading… ${pct}%`;
+        }
+        if (p.status === 'done' && lbl) lbl.textContent = 'Finalizing…';
+      }
+    });
+    mPipes[modelId] = pipe;
+    mState[modelId] = 'cached';
+    if (!activeId) activeId = modelId;
+    renderModels();
+    showToast(`${MODELS.find(m=>m.id===modelId).name} downloaded ✓`, true);
+  } catch(e) {
+    mState[modelId] = 'error';
+    renderModels();
+    showToast('Download failed — check connection', false);
+  }
+};
+
+window.useModel = function(modelId) {
+  if (mState[modelId] !== 'cached') return;
+  activeId = modelId;
+  renderModels();
+  showToast(`Switched to ${MODELS.find(m=>m.id===modelId).name}`, true);
+};
+
+window.delModel = function(modelId) {
+  if (activeId === modelId) { showToast("Can't remove the active model", false); return; }
+  delete mPipes[modelId];
+  mState[modelId] = 'idle';
+  renderModels();
+  showToast('Model removed', true);
+};
+
+renderModels();
+
+// ── File handling ──────────────────────────────────────────────────────────
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', e => e.target.files[0] && handleFile(e.target.files[0]));
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('drag-over'); e.dataTransfer.files[0] && handleFile(e.dataTransfer.files[0]); });
+
+// ── Recording ──────────────────────────────────────────────────────────────
+const recordBtn     = document.getElementById('recordBtn');
+const stopRecordBtn = document.getElementById('stopRecordBtn');
+recordBtn.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    startWave(stream);
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => e.data.size > 0 && recordedChunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+      audioPlayer.src = URL.createObjectURL(blob);
+      audioPlayer.style.display = 'block';
+      cancelAnimationFrame(animFrameId);
+      waveCanvas.style.display = 'none';
+      stream.getTracks().forEach(t => t.stop());
+      handleFile(new File([blob], 'recording.webm', { type: 'audio/webm' }));
+    };
+    mediaRecorder.start();
+    recordBtn.innerHTML = '<span class="rec-dot"></span> Recording…';
+    recordBtn.disabled = true; stopRecordBtn.disabled = false;
+    waveCanvas.style.display = 'block';
+  } catch { showToast('Microphone access denied', false); }
+});
+stopRecordBtn.addEventListener('click', () => {
+  if (mediaRecorder?.state !== 'inactive') {
+    mediaRecorder.stop();
+    recordBtn.innerHTML = '⏺ Start recording';
+    recordBtn.disabled = false; stopRecordBtn.disabled = true;
+  }
+});
+
+function startWave(stream) {
+  const ctx = new AudioContext();
+  const analyser = ctx.createAnalyser(); analyser.fftSize = 512;
+  ctx.createMediaStreamSource(stream).connect(analyser);
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  const wc = waveCanvas.getContext('2d');
+  function draw() {
+    animFrameId = requestAnimationFrame(draw);
+    analyser.getByteTimeDomainData(buf);
+    const {width:w,height:h} = waveCanvas;
+    wc.clearRect(0,0,w,h);
+    wc.strokeStyle='#7c6af5'; wc.lineWidth=1.5; wc.beginPath();
+    const sl=w/buf.length; let x=0;
+    buf.forEach((v,i)=>{ const y=(v/128)*(h/2); i===0?wc.moveTo(x,y):wc.lineTo(x,y); x+=sl; });
+    wc.stroke();
+  }
+  draw();
+}
+
+// ── Transcribe ─────────────────────────────────────────────────────────────
+async function handleFile(file) {
+  if (!activeId || mState[activeId] !== 'cached') {
+    showToast('Select a downloaded model first', false);
+    return;
+  }
+  setStatus(true, 'Reading audio…', 55);
+  resultArea.style.display = 'none';
+  const buf = await file.arrayBuffer();
+  const aCtx = new AudioContext({ sampleRate: 16000 });
+  const decoded = await aCtx.decodeAudioData(buf);
+  const f32 = decoded.getChannelData(0);
+  const mName = MODELS.find(m=>m.id===activeId).name;
+  setStatus(true, `Transcribing with <strong>${mName}</strong>…`, 82);
+  try {
+    const lang = document.getElementById('langSelect').value;
+    const opts = { chunk_length_s: 30, stride_length_s: 5, return_timestamps: true };
+    if (lang !== 'auto') opts.language = lang;
+    const result = await mPipes[activeId](f32, opts);
+    rawTranscript = result.text || (result.chunks||[]).map(c=>c.text).join(' ');
+    setStatus(false);
+    showTranscript(rawTranscript);
+    buildKeywords();
+    sentimentData = null;
+    resultArea.style.display = 'block';
+    switchRTab('transcript');
+    audioPlayer.style.display = 'block';
+    if (!audioPlayer.src || audioPlayer.src === window.location.href)
+      audioPlayer.src = URL.createObjectURL(file);
+    showToast('Transcription complete ✓', true);
+  } catch(e) {
+    setStatus(false);
+    showToast('Transcription failed: ' + e.message, false);
+  }
+}
+
+function switchRTab(key) {
+  document.querySelectorAll('.rtab').forEach(t=>t.classList.toggle('active', t.dataset.rt===key));
+  document.querySelectorAll('.rpanel').forEach(p=>p.classList.toggle('active', p.id==='rt-'+key));
+}
+
+// ── Transcript ─────────────────────────────────────────────────────────────
+function showTranscript(text) {
+  let html = text;
+  Object.keys(KEYWORDS).forEach(kw => {
+    html = html.replace(new RegExp(`\\b(${kw})\\b`,'gi'), `<mark class="kw-${kw}">$1</mark>`);
+  });
+  txText.innerHTML = html;
+}
+
+// ── Keywords ───────────────────────────────────────────────────────────────
+function buildKeywords() {
+  const chips = document.getElementById('kwChips');
+  const grid  = document.getElementById('kwGrid');
+  chips.innerHTML = ''; grid.innerHTML = '';
+  Object.keys(KEYWORDS).forEach(kw => {
+    const n = (rawTranscript.match(new RegExp(`\\b${kw}\\b`,'gi'))||[]).length;
+    const chip = document.createElement('span');
+    chip.className = `kw-chip chip-${kw}`;
+    chip.textContent = `${kw} (${n})`;
+    chip.onclick = () => {
+      if (n > 0) {
+        txText.innerHTML = rawTranscript.replace(new RegExp(`\\b(${kw})\\b`,'gi'), `<mark class="kw-${kw}" style="outline:2px solid currentColor;outline-offset:1px;">$1</mark>`);
+      }
+      switchRTab('transcript');
+    };
+    chips.appendChild(chip);
+    if (n > 0) {
+      const c = document.createElement('div');
+      c.className = 'kw-card';
+      c.innerHTML = `<div class="n">${n}</div><div class="l">${kw}</div>`;
+      grid.appendChild(c);
+    }
+  });
+  if (!grid.children.length) grid.innerHTML = '<div style="color:var(--muted);font-size:12px;">No business keywords detected.</div>';
+}
+
+// ── Sentiment (Transformers.js — fully on-device) ──────────────────────────
+let sentPipe = null;
+
+async function getSentPipeline() {
+  if (sentPipe) return sentPipe;
+  const { pipeline: tfPipeline } = await import('https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/dist/transformers.min.js');
+  sentPipe = await tfPipeline('sentiment-analysis', 'Xenova/distilbert-base-uncased-finetuned-sst-2-english');
+  return sentPipe;
+}
+
+document.getElementById('analyzeBtn').addEventListener('click', async () => {
+  if (!rawTranscript) { showToast('No transcript yet', false); return; }
+  const btn = document.getElementById('analyzeBtn');
+  btn.disabled = true; btn.textContent = '⏳ Analyzing…';
+  const insightEl = document.getElementById('sentInsight');
+  insightEl.textContent = 'Loading on-device model…';
+  try {
+    const pipe = await getSentPipeline();
+    insightEl.textContent = 'Running sentiment analysis…';
+
+    // Split transcript into 8 roughly equal segments
+    const text = rawTranscript.slice(0, 4000);
+    const words = text.split(/\s+/).filter(Boolean);
+    const segSize = Math.max(1, Math.floor(words.length / 8));
+    const segments = [];
+    for (let i = 0; i < 8; i++) {
+      const chunk = words.slice(i * segSize, (i + 1) * segSize).join(' ') || words.slice(-10).join(' ');
+      segments.push({ label: `Seg ${i + 1}`, text: chunk });
+    }
+
+    // Run inference on each segment
+    const results = await Promise.all(segments.map(s => pipe(s.text.slice(0, 512))));
+
+    // Convert POSITIVE/NEGATIVE + confidence → -1..+1 score
+    const scored = results.map((r, i) => {
+      const res = Array.isArray(r) ? r[0] : r;
+      const raw = res.label === 'POSITIVE' ? res.score : -res.score;
+      // Compress slightly so scores don't all sit at extremes
+      const score = parseFloat((raw * 0.9).toFixed(3));
+      return { label: segments[i].label, score };
+    });
+
+    const scores = scored.map(s => s.score);
+    const overall_score = parseFloat((scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(3));
+    const peak_positive = parseFloat(Math.max(...scores).toFixed(3));
+    const peak_negative = parseFloat(Math.min(...scores).toFixed(3));
+
+    // Generate a simple textual insight from the arc
+    const trend = scores[scores.length - 1] - scores[0];
+    const trendStr = trend > 0.15 ? 'improving toward the end' : trend < -0.15 ? 'declining toward the end' : 'relatively stable throughout';
+    const tone = overall_score > 0.2 ? 'mostly positive' : overall_score < -0.2 ? 'mostly negative' : 'mixed';
+    const insight = `The conversation is ${tone} with sentiment ${trendStr}.`;
+
+    const parsed = { segments: scored, overall_score, peak_positive, peak_negative, insight };
+    sentimentData = parsed;
+    drawSentChart(parsed);
+    btn.textContent = '↻ Re-analyze';
+  } catch(e) {
+    insightEl.textContent = 'Analysis failed: ' + e.message;
+    btn.textContent = '✨ Analyze Sentiment';
+  }
+  btn.disabled = false;
+});
+
+function drawSentChart(data) {
+  const ctx = document.getElementById('sentChart').getContext('2d');
+  if (sentChartInst) sentChartInst.destroy();
+  const scores = data.segments.map(s=>s.score);
+  const ptColors = scores.map(s => s>.2?'#3dffa0':s<-.2?'#ff5f6d':'#ffb347');
+  sentChartInst = new Chart(ctx, {
+    type: 'line',
+    data: { labels: data.segments.map(s=>s.label), datasets: [{ data: scores, borderColor:'#7c6af5', borderWidth:2, pointBackgroundColor:ptColors, pointBorderColor:ptColors, pointRadius:6, pointHoverRadius:8, fill:false, tension:.4 }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales: {
+        y:{ min:-1,max:1, grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#6b6b80',font:{family:"'DM Mono',monospace",size:11},callback:v=>(v>0?'+':'')+v.toFixed(1)} },
+        x:{ grid:{display:false}, ticks:{color:'#6b6b80',font:{family:"'DM Mono',monospace",size:10}} }
+      }
+    }
+  });
+  const ov=data.overall_score, ovc=ov>.2?'#3dffa0':ov<-.2?'#ff5f6d':'#ffb347';
+  document.getElementById('sentSummary').innerHTML=`
+    <div class="sc"><div class="v" style="color:${ovc}">${ov>0?'+':''}${ov.toFixed(2)}</div><div class="l">Overall</div></div>
+    <div class="sc"><div class="v" style="color:#3dffa0">+${data.peak_positive.toFixed(2)}</div><div class="l">Peak positive</div></div>
+    <div class="sc"><div class="v" style="color:#ff5f6d">${data.peak_negative.toFixed(2)}</div><div class="l">Peak negative</div></div>`;
+  document.getElementById('sentInsight').textContent = '💡 ' + data.insight;
+}
+
+// ── Export ─────────────────────────────────────────────────────────────────
+window.exportAs = function(fmt) {
+  if (!rawTranscript) { showToast('Nothing to export', false); return; }
+  const ts = new Date().toISOString().slice(0,19).replace('T','_');
+  let content, filename, mime='text/plain';
+  if (fmt==='txt') {
+    content=rawTranscript; filename=`transcript_${ts}.txt`;
+  } else if (fmt==='json') {
+    const kw={};
+    Object.keys(KEYWORDS).forEach(k=>{kw[k]=(rawTranscript.match(new RegExp(`\\b${k}\\b`,'gi'))||[]).length;});
+    content=JSON.stringify({transcript:rawTranscript,model:activeId,keywords:kw,sentiment:sentimentData,exported_at:new Date().toISOString()},null,2);
+    filename=`transcript_${ts}.json`; mime='application/json';
+  } else if (fmt==='srt') {
+    const words=rawTranscript.split(' '); let srt='',idx=1,t=0;
+    for(let i=0;i<words.length;i+=10){srt+=`${idx++}\n${srt0(t)} --> ${srt0(t+5)}\n${words.slice(i,i+10).join(' ')}\n\n`;t+=5;}
+    content=srt; filename=`transcript_${ts}.srt`;
+  } else if (fmt==='md') {
+    const kl=Object.keys(KEYWORDS).map(k=>{const n=(rawTranscript.match(new RegExp(`\\b${k}\\b`,'gi'))||[]).length;return n>0?`- **${k}**: ${n} mention${n>1?'s':''}`:null;}).filter(Boolean);
+    content=`# Transcript\n_${new Date().toLocaleString()}_\n\n---\n\n${rawTranscript}\n\n---\n\n## Keywords\n${kl.join('\n')||'_None_'}\n\n## Sentiment\n${sentimentData?`Score: **${sentimentData.overall_score.toFixed(2)}**\n\n> ${sentimentData.insight}`:'_Not analyzed_'}\n`;
+    filename=`transcript_${ts}.md`;
+  }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([content],{type:mime}));
+  a.download=filename; a.click();
+  showToast(`Exported ${fmt.toUpperCase()} ✓`, true);
+};
+function srt0(s){return[Math.floor(s/3600),Math.floor((s%3600)/60),Math.floor(s%60)].map(n=>String(n).padStart(2,'0')).join(':')+',000';}
+
+// ── Toolbar ────────────────────────────────────────────────────────────────
+document.getElementById('copyBtn').addEventListener('click', ()=>navigator.clipboard.writeText(rawTranscript).then(()=>showToast('Copied ✓',true)));
+document.getElementById('clearBtn').addEventListener('click', ()=>{
+  rawTranscript=''; sentimentData=null;
+  txText.innerHTML='<span class="ph">Your transcript will appear here…</span>';
+  resultArea.style.display='none';
+  audioPlayer.style.display='none'; audioPlayer.src='';
+});
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function setStatus(on, msg='', pct=0) {
+  statusBar.classList.toggle('on', on);
+  statusText.innerHTML=msg;
+  progFill.style.width=pct+'%';
+}
+function showToast(msg, ok=true) {
+  toastEl.textContent=msg;
+  toastEl.className='toast'+(ok?' ok':'');
+  toastEl.classList.add('show');
+  setTimeout(()=>toastEl.classList.remove('show'),3000);
+}
+</script>
+</body>
+</html>
